@@ -1,45 +1,38 @@
 import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
-import { getHomePage } from "~/lib/queries";
+import { getShortfilmsPage } from "~/lib/queries";
 import { getFileUrl } from "~/lib/sanity";
 import Layout from "~/components/Layout";
-import Hero from "~/components/Hero";
 import VideoSlider from "~/components/VideoSlider";
-import Services from "~/components/Services";
 
 export const meta: MetaFunction = () => [
-  { title: "SANSHOOTS®" },
-  { name: "description", content: "SANSHOOTS® is an award-winning videography studio founded by Hassan Musa based in Los Angeles, CA." },
+  { title: "Shortfilms — SANSHOOTS®" },
 ];
 
 export async function loader(_: LoaderFunctionArgs) {
-  const data = await getHomePage();
+  const data = await getShortfilmsPage();
   return json({ data });
 }
 
-export default function Index() {
+export default function ShortfilmsPage() {
   const { data } = useLoaderData<typeof loader>();
 
-  const slides = (data?.sliderProjects || []).map((p: any) => ({
+  const slides = (data?.projects || []).map((p: any) => ({
     mp4Src: p.sliderVideoMp4 ? getFileUrl(p.sliderVideoMp4) : null,
     webmSrc: p.sliderVideoWebm ? getFileUrl(p.sliderVideoWebm) : null,
     fallbackImageSrc: p.posterImage?.asset?.url || null,
     title: p.title,
     tag: p.tag,
-    linkTo: `/${p.category}/${p.slug?.current}`,
-  }));
-
-  const services = (data?.services || []).map((s: any) => ({
-    name: s.name,
-    video: s.video ? getFileUrl(s.video) : null,
+    linkTo: `/shortfilms/${p.slug?.current}`,
   }));
 
   return (
     <Layout>
-      <Hero />
+      <div className="page-header">
+        <h1>{data?.page?.pageTitle || "Shortfilms"}</h1>
+      </div>
       <VideoSlider slides={slides} />
-      <Services services={services} />
     </Layout>
   );
 }

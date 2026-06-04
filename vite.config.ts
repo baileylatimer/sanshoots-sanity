@@ -11,6 +11,9 @@ export default defineConfig({
   optimizeDeps: {
     include: ['@sanity/client'],
   },
+  ssr: {
+    noExternal: ['gsap'],
+  },
   build: {
     cssMinify: true,
   },
