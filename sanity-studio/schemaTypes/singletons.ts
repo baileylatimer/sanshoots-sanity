@@ -51,6 +51,14 @@ export const homePage = defineType({
       options: {accept: 'video/mp4'},
     }),
     defineField({
+      name: 'featuredProjects',
+      title: 'Featured Projects (Ring)',
+      type: 'array',
+      of: [{type: 'reference', to: [{type: 'project'}]}],
+      description: 'Projects shown in the 3D ring carousel on the homepage (recommend 6–10).',
+      validation: (Rule) => Rule.min(3).max(12),
+    }),
+    defineField({
       name: 'sliderProjects',
       title: 'Featured Slider Projects',
       type: 'array',

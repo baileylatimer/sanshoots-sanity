@@ -1,7 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { ScrollSmoother } from "gsap/ScrollSmoother";
 import Header from "./Header";
 import Footer from "./Footer";
 import Cursor from "./Cursor";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger, ScrollSmoother);
+}
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,12 +16,36 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, className }: LayoutProps) {
+  useEffect(() => {
+    // Respect prefers-reduced-motion
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) return;
+
+    const smoother = ScrollSmoother.create({
+      wrapper: "#smooth-wrapper",
+      content: "#smooth-content",
+      smooth: 1.2,      // tunable: higher = smoother/laggier
+      effects: true,    // enables data-speed / data-lag parallax attributes
+      // smoothTouch intentionally omitted → native scroll on touch devices
+    });
+
+    return () => {
+      smoother.kill();
+    };
+  }, []);
+
   return (
     <>
+      {/* Cursor + Header are OUTSIDE the smooth wrapper so position:fixed works */}
       <Cursor />
       <Header />
-      <main className={className}>{children}</main>
-      <Footer />
+
+      <div id="smooth-wrapper">
+        <div id="smooth-content">
+          <main className={className}>{children}</main>
+          <Footer />
+        </div>
+      </div>
     </>
   );
 }

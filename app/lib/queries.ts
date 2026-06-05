@@ -4,6 +4,16 @@ import { client } from './sanity'
 export async function getHomePage() {
   return client.fetch(`*[_id == "homePage"][0]{
     heroVideoMp4{ asset->{ _id, url, _ref } },
+    featuredProjects[]->{
+      _id,
+      title,
+      slug,
+      tag,
+      category,
+      posterImage{ asset->{ _id, url } },
+      sliderVideoMp4{ asset->{ _id, url, _ref } },
+      sliderVideoWebm{ asset->{ _id, url, _ref } }
+    },
     sliderProjects[]->{
       _id,
       title,
