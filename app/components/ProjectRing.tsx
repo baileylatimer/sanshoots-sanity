@@ -408,7 +408,7 @@ function RingGroup({
   });
 
   return (
-    <group ref={tiltGroupRef}>
+    <group ref={tiltGroupRef} scale={isMobile ? 0.86 : 1}>
       {displayProjects.map((project, i) => (
         <RingCard
           key={`${project._id}-${i}`}
@@ -486,7 +486,7 @@ export default function ProjectRing({
   const bind = useGesture({
     onDrag: ({ delta: [dx], last, velocity: [vx], direction: [dirx] }) => {
       isDragging.current = true;
-      groupRotY.current += dx * DRAG_SENSITIVITY;
+      groupRotY.current += dx * DRAG_SENSITIVITY * (isMobile ? 0.75 : 1);
       if (last) {
         isDragging.current = false;
         const fling = dirx * vx * FLING_SCALE;
