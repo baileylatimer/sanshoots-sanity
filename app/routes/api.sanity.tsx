@@ -1,25 +1,11 @@
 import { json } from "@remix-run/node";
-import { createClient } from '@sanity/client';
+import { client } from "~/lib/sanity";
 
-const sanityClient = createClient({
-  projectId: process.env.SANITY_PROJECT_ID || 'YOUR_SANITY_PROJECT_ID',
-  dataset: process.env.SANITY_DATASET || 'YOUR_SANITY_DATASET',
-  useCdn: process.env.NODE_ENV === 'production',
-  apiVersion: '2023-05-03', // Use current date in YYYY-MM-DD format
-});
-
-if (!sanityClient.config().projectId) {
-  throw new Error('Sanity Project ID is required');
-}
+// Re-uses the shared Sanity client (hardcoded projectId/dataset in ~/lib/sanity.ts)
+// so this route never crashes on import due to missing env vars.
 
 export async function loader() {
   try {
-    // Test Sanity connection first
-    const config = sanityClient.config();
-    if (!config.projectId) {
-      throw new Error('Sanity configuration error: Missing project ID');
-    }
-
     const query = `*[_type == "project"]{
       _id,
       title,
@@ -30,26 +16,27 @@ export async function loader() {
       technologies,
       "mainImageUrl": mainImage.asset->url
     }`;
-    
-    const projects = await sanityClient.fetch(query);
-    
+
+    const projects = await client.fetch(query);
+
     if (!projects) {
-      console.warn('No projects found in Sanity');
+      console.warn("No projects found in Sanity");
       return json([]);
     }
 
     return json(projects);
   } catch (error) {
-    console.error('Error in Sanity API route:', {
-      message: error instanceof Error ? error.message : 'Unknown error occurred',
+    console.error("Error in Sanity API route:", {
+      message: error instanceof Error ? error.message : "Unknown error occurred",
       stack: error instanceof Error ? error.stack : undefined,
-      config: sanityClient.config()
     });
-    
-    return json({
-      error: 'Failed to fetch projects',
-      details: error instanceof Error ? error.message : 'Unknown error occurred',
-      projectId: process.env.SANITY_PROJECT_ID || 'YOUR_SANITY_PROJECT_ID'
-    }, { status: 500 });
+
+    return json(
+      {
+        error: "Failed to fetch projects",
+        details: error instanceof Error ? error.message : "Unknown error occurred",
+      },
+      { status: 500 }
+    );
   }
 }
