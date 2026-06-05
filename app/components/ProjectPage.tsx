@@ -1,30 +1,42 @@
 import { useEffect, useRef } from "react";
 import { Link } from "@remix-run/react";
+import Header from "./Header";
+import Cursor from "./Cursor";
 
 interface PageBuilderBlock {
   _type: string;
   _key: string;
+  /** New single-field title text (preferred) */
+  text?: string;
+  /** Legacy multi-line array — kept for backwards compat with migrated data */
   headingLines?: string[];
   image?: { asset?: { url: string } };
   alt?: string;
   heading?: string;
-  text?: string;
   images?: Array<{ asset?: { url: string }; _key: string }>;
   reelUrl?: string;
   useExtraSmall?: boolean;
 }
 
-interface ProjectPageProps {
-  vimeoUrl: string;
-  projectTitle: string;
-  projectTag: string;
-  projectInfo: string[];
-  pageBuilder: PageBuilderBlock[];
-  nextProjectTitle: string;
-  nextProjectUrl: string;
+interface NextProject {
+  title?: string;
+  slug?: { current?: string };
+  category?: string;
 }
 
-function renderBlock(block: PageBuilderBlock, index: number) {
+interface ProjectPageProps {
+  title: string;
+  projectVideo?: string | null;
+  vimeoUrl?: string;
+  tag?: string;
+  location?: string;
+  coordinates?: string;
+  pageBuilder: PageBuilderBlock[];
+  nextProject?: NextProject | null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function renderBlock(block: PageBuilderBlock, _index: number) {
   const isSmallWidth = block._type === "imageBlock" || block._type === "paragraphBlock";
   const isExtraSmall = block._type === "reelBlock" && block.useExtraSmall !== false;
 
@@ -33,24 +45,40 @@ function renderBlock(block: PageBuilderBlock, index: number) {
   else if (isSmallWidth) detailClass += " project-detail--sm";
 
   switch (block._type) {
-    case "titleBlock":
+    case "titleBlock": {
+      // Prefer new single `text` field; fall back to legacy headingLines array
+      const titleText = block.text ?? (block.headingLines ?? []).join("\n");
       return (
         <div key={block._key} className={detailClass}>
           <div className="content-width">
-            <h3 className="text-center">
-              {(block.headingLines || []).map((line, i, arr) => (
-                <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
-              ))}
+            {/* white-space: pre-line turns \n into line breaks without wrapper spans,
+                so the h3's Rayuela font-family applies directly to the text */}
+            <h3 className="text-center" style={{ whiteSpace: "pre-line" }}>
+              {titleText}
             </h3>
           </div>
         </div>
       );
+    }
 
     case "imageBlock":
       return (
         <div key={block._key} className={detailClass}>
           <div className="layout-image">
-            <img src={block.image?.asset?.url || ""} alt={block.alt || ""} />
+            <img src={block.image?.asset?.url ?? ""} alt={block.alt ?? ""} />
+          </div>
+        </div>
+      );
+
+    case "imageTextBlock":
+      return (
+        <div key={block._key} className={detailClass}>
+          <div className="layout-image-text flex gap-24 ml-24">
+            <div className="flex flex-col pl-96 px-36">
+              <h3>{block.heading}</h3>
+              <p>{block.text}</p>
+            </div>
+            <img src={block.image?.asset?.url ?? ""} alt={block.alt ?? ""} />
           </div>
         </div>
       );
@@ -60,18 +88,18 @@ function renderBlock(block: PageBuilderBlock, index: number) {
         <div key={block._key} className={detailClass}>
           <div className="layout-gallery flex flex-col md:flex-row gap-4 h-full">
             <div className="w-full md:w-1/2 h-1/2 md:h-full">
-              <img src={block.images?.[0]?.asset?.url || ""} alt="" className="w-full h-full object-cover" />
+              <img src={block.images?.[0]?.asset?.url ?? ""} alt="" className="w-full h-full object-cover" />
             </div>
             <div className="w-full md:w-1/2 flex flex-col gap-4 h-1/2 md:h-full">
               <div className="h-1/2">
-                <img src={block.images?.[1]?.asset?.url || ""} alt="" className="w-full h-full object-cover" />
+                <img src={block.images?.[1]?.asset?.url ?? ""} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="h-1/2 flex gap-4">
                 <div className="w-1/2 h-full">
-                  <img src={block.images?.[2]?.asset?.url || ""} alt="" className="w-full h-full object-cover" />
+                  <img src={block.images?.[2]?.asset?.url ?? ""} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div className="w-1/2 h-full">
-                  <img src={block.images?.[3]?.asset?.url || ""} alt="" className="w-full h-full object-cover" />
+                  <img src={block.images?.[3]?.asset?.url ?? ""} alt="" className="w-full h-full object-cover" />
                 </div>
               </div>
             </div>
@@ -94,7 +122,12 @@ function renderBlock(block: PageBuilderBlock, index: number) {
         <div key={block._key} className={detailClass}>
           <div className="layout-reel content-width">
             <iframe
-              src={block.reelUrl?.replace("vimeo.com/", "player.vimeo.com/video/") + "?autoplay=1&loop=1&muted=0&controls=1"}
+              src={
+                block.reelUrl
+                  ? block.reelUrl.replace("vimeo.com/", "player.vimeo.com/video/") +
+                    "?autoplay=1&loop=1&muted=0&controls=1"
+                  : ""
+              }
               allow="autoplay; fullscreen; picture-in-picture"
               allowFullScreen
               title="Reel"
@@ -110,85 +143,124 @@ function renderBlock(block: PageBuilderBlock, index: number) {
 }
 
 export default function ProjectPage({
+  title,
+  projectVideo,
   vimeoUrl,
-  projectTitle,
-  projectTag,
-  projectInfo,
+  tag,
+  location,
+  coordinates,
   pageBuilder,
-  nextProjectTitle,
-  nextProjectUrl,
+  nextProject,
 }: ProjectPageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const projectInfo = [location, coordinates].filter((v): v is string => Boolean(v));
+
+  const nextProjectTitle = nextProject?.title ?? "";
+  const nextProjectUrl =
+    nextProject?.slug?.current && nextProject?.category
+      ? `/${nextProject.category}/${nextProject.slug.current}`
+      : null;
+
+  // Lock body scroll so wheel events go to horizontal container
+  useEffect(() => {
+    document.body.classList.add("project-page");
+    return () => document.body.classList.remove("project-page");
+  }, []);
+
+  // Convert vertical wheel → horizontal scroll.
+  // If the user is already swiping horizontally (trackpad), let the browser handle it.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const handleScroll = (e: WheelEvent) => {
-      container.scrollLeft += e.deltaY;
+    const handleWheel = (e: WheelEvent) => {
+      // Horizontal trackpad gesture — let browser handle natively
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       e.preventDefault();
+      container.scrollLeft += e.deltaY;
     };
-    window.addEventListener("wheel", handleScroll, { passive: false });
-    return () => window.removeEventListener("wheel", handleScroll);
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheel);
   }, []);
 
-  // Build vimeo embed URL
   const vimeoEmbed = vimeoUrl
     ? vimeoUrl.replace("vimeo.com/", "player.vimeo.com/video/") + "?autoplay=1&loop=1&muted=0&controls=1"
     : "";
 
   return (
-    <div className="project-page-container" ref={containerRef}>
-      {/* Main video section */}
+    <>
+      <Cursor />
+      <Header />
+      <div className="project-page-container" ref={containerRef}>
+      {/* ── Hero video section ── */}
       <div className="video-section bg-inverse">
-        <div className="video-wrapper flex justify-center items-center">
-          <div className="video-player-container">
-            {vimeoEmbed && (
+        <div className="video-wrapper">
+          {projectVideo ? (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <video
+              className="project-video-native"
+              src={projectVideo}
+              autoPlay
+              loop
+              controls
+              playsInline
+            />
+          ) : vimeoEmbed ? (
+            <div className="video-player-container">
               <iframe
                 src={vimeoEmbed}
                 width="100%"
                 height="100%"
                 allow="autoplay; fullscreen; picture-in-picture"
                 allowFullScreen
-                title={projectTitle}
+                title={title}
               />
-            )}
-          </div>
-          <div className="video-overlay-2">
-            <div className="project-overview flex flex-col lg:flex-row justify-between w-full pl-6 lg:pl-0">
-              <div className="project-title">{projectTitle}</div>
-              <div className="project-info">
-                {projectInfo.map((info, i) => (
-                  <span key={i}>{info}{i < projectInfo.length - 1 && <br />}</span>
-                ))}
-                <div className="pill pill--ghost mt-4">{projectTag}</div>
-              </div>
+            </div>
+          ) : null}
+          {/* Bottom overlay: title on left, info stack on right */}
+          <div className="project-overview">
+            <div className="project-title">{title}</div>
+            <div className="project-info-stack">
+              {projectInfo.map((info, i) => (
+                <p key={i} className="color-bg m-0">{info}</p>
+              ))}
+              {tag && <div className="pill pill--ghost mt-2">{tag}</div>}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Horizontal page builder blocks */}
-      <div className="horizontal-sections">
-        {(pageBuilder || []).map((block, i) => renderBlock(block, i))}
-      </div>
+      {/* ── Page builder cards — direct flex children of scroll container ── */}
+      {(pageBuilder ?? []).map((block, i) => renderBlock(block, i))}
 
-      {/* Next project */}
-      <div className="next-project-section bg-inverse w-screen h-screen flex flex-col items-center justify-center">
-        <p className="color-bg uppercase">Next Project</p>
-        <h2
-          data-text={nextProjectTitle}
-          className="project-end color-bg glitch whitespace-normal lg:whitespace-nowrap my-12 text-center"
-        >
-          {nextProjectTitle}
-        </h2>
-        <div className="btn relative btn--ghost">
-          <Link to={nextProjectUrl}>View Now
-            <svg className="red-dot" width="24" height="23" viewBox="0 0 24 23" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12.2603" cy="11.5" r="6.5" fill="#FF0B0B"/>
-            </svg>
-          </Link>
+      {/* ── Next project ── */}
+      {nextProjectUrl && (
+        <div className="next-project-section bg-inverse flex flex-col items-center justify-center">
+          <p className="color-bg uppercase">Next Project</p>
+          <h2
+            data-text={nextProjectTitle}
+            className="project-end color-bg glitch whitespace-normal lg:whitespace-nowrap my-12 text-center"
+          >
+            {nextProjectTitle}
+          </h2>
+          <div className="btn relative btn--ghost">
+            <Link to={nextProjectUrl}>
+              View Now
+              <svg
+                className="red-dot"
+                width="24"
+                height="23"
+                viewBox="0 0 24 23"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <circle cx="12.2603" cy="11.5" r="6.5" fill="#FF0B0B" />
+              </svg>
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
     </div>
+    </>
   );
 }

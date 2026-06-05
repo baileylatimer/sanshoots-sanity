@@ -13,7 +13,7 @@ export default function Header() {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <nav className="nav flex flex-wrap items-center justify-between py-3 lg:p-6 mx-d mb-6 px-d z-50">
+    <nav className="nav flex flex-wrap items-center justify-between p-2 mx-d mt-2 mb-6 px-d z-50">
       <div className="flex items-center color-bg px-d">
         <Link to="/" className="logo-wrapper mb-0">
           <svg className="nav-logo" width="114" height="44" viewBox="0 0 114 44" fill="none" xmlns="http://www.w3.org/2000/svg">

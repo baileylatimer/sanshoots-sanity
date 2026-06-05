@@ -1,0 +1,8 @@
+**/node_modules/
+**/.sanity/
+build/
+dist/
+.vite/
+*.map
+public/videos/
+sanity-studio/

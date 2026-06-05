@@ -56,10 +56,17 @@ export const project = defineType({
       description: 'e.g. 33.7455° N, 117.8677° W',
     }),
     defineField({
+      name: 'projectVideoMp4',
+      title: 'Project Video (MP4) — preferred',
+      type: 'file',
+      description: 'Upload the project hero video directly. If provided, this plays instead of the Vimeo URL.',
+      options: {accept: 'video/mp4'},
+    }),
+    defineField({
       name: 'vimeoUrl',
-      title: 'Vimeo URL',
+      title: 'Vimeo URL (fallback)',
       type: 'url',
-      description: 'Full Vimeo URL for the hero video player on the project page.',
+      description: 'Vimeo URL used only when no Project Video file is uploaded above.',
     }),
     defineField({
       name: 'posterImage',

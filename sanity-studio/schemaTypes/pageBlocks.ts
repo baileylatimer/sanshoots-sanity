@@ -6,18 +6,18 @@ export const titleBlock = defineType({
   type: 'object',
   fields: [
     defineField({
-      name: 'headingLines',
-      title: 'Heading Lines',
-      type: 'array',
-      of: [{type: 'string'}],
-      description: 'Each string is a separate line of the heading (rendered with <br> between them).',
-      validation: (Rule) => Rule.required().min(1),
+      name: 'text',
+      title: 'Title Text',
+      type: 'text',
+      rows: 3,
+      description: 'Large Rayuela heading. Press Enter for a line break.',
+      validation: (Rule) => Rule.required(),
     }),
   ],
   preview: {
-    select: {lines: 'headingLines'},
-    prepare({lines}) {
-      return {title: 'Title Block', subtitle: lines?.join(' / ')}
+    select: {text: 'text'},
+    prepare({text}) {
+      return {title: 'Title Block', subtitle: text?.substring(0, 60)}
     },
   },
 })

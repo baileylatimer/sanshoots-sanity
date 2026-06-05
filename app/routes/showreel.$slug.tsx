@@ -20,6 +20,7 @@ export default function ShowreelProject() {
     <ProjectPage
       title={project.title}
       vimeoUrl={project.vimeoUrl}
+      projectVideo={project.projectVideoMp4?.asset?.url ?? null}
       location={project.location}
       coordinates={project.coordinates}
       tag={project.tag}

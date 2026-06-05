@@ -69,15 +69,16 @@ export async function getProject(slug: string) {
     location,
     coordinates,
     vimeoUrl,
+    projectVideoMp4{ asset->{ _id, url, _ref } },
     posterImage{ asset->{ _id, url } },
     pageBuilder[]{
       _type,
       _key,
+      text,
       headingLines,
       image{ asset->{ _id, url } },
       alt,
       heading,
-      text,
       images[]{ asset->{ _id, url }, _key },
       reelUrl,
       useExtraSmall

@@ -219,7 +219,6 @@ nav .btn a { padding: 0; margin: 0; white-space: nowrap; }
 .nav {
   border: 1px solid var(--color-bg);
   border-radius: 16px;
-  margin: 20px 40px;
   position: fixed;
   width: calc(100vw - 80px);
   z-index: 99;
@@ -506,24 +505,42 @@ nav a { color: var(--color-bg); }
 }
 
 /* ─── Project Page (horizontal scroll) ──────────────────────────────────── */
+
+/* Lock body scroll when on a project page so wheel → horizontal works cleanly */
+body.project-page {
+  overflow: hidden;
+  height: 100vh;
+}
+
 .project-page-container {
   display: flex;
+  flex-direction: row;
   height: 100vh;
   width: 100vw;
   overflow-x: auto;
   overflow-y: hidden;
-  white-space: nowrap;
+  /* hide scrollbar — wheel + trackpad still work */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.project-page-container::-webkit-scrollbar { display: none; }
+
+/* Every direct flex child is fixed-width so the container overflows correctly */
 .video-section {
+  flex: 0 0 100vw;
   position: relative;
-  width: 100vw;
   height: 100vh;
-  min-width: 100vw;
   display: flex;
   align-items: center;
   justify-content: center;
-  scroll-snap-align: start;
 }
+.next-project-section {
+  flex: 0 0 100vw;
+  height: 100vh;
+  padding: 0 100px;
+}
+@media(min-width:1023px) { .next-project-section { padding: 0 500px; } }
+
 .video-wrapper {
   position: absolute;
   width: 100%;
@@ -542,23 +559,47 @@ nav a { color: var(--color-bg); }
   padding: 0 2rem;
   z-index: 2;
 }
+/* Video slide overlay — title on left, info stack on right */
 .project-overview {
   position: absolute;
-  bottom: 80px;
-  left: 0px;
+  bottom: 40px;
+  left: 0;
+  right: 0;
   color: white;
-  font-size: 24px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 40px;
+  gap: 24px;
 }
-@media(min-width:1024px) { .project-overview { bottom: 40px; } }
+@media(max-width:1023px) { .project-overview { padding: 0 20px; bottom: 24px; } }
 @media(min-width:1623px) { .project-overview { bottom: 90px; } }
+.project-info-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.project-overview p {
+  color: white !important;
+  font-size: var(--font-base);
+  margin: 0;
+  text-transform: uppercase;
+}
 .project-title {
   font-family: 'Rayuela' !important;
   font-size: 72px;
+  color: white;
+  line-height: 1;
 }
-.horizontal-sections { display: flex; height: 100vh; }
+
+/* Defensive: spans inside headings inherit the heading's font-family (Rayuela) */
+h1 span, h2 span, h3 span { font-family: inherit !important; }
+
+/* Project detail cards */
 .project-detail {
-  flex: 0 0 auto;
-  width: 100vw;
+  flex: 0 0 100vw;
   height: 100vh;
   display: inline-flex;
   align-items: center;
@@ -570,11 +611,12 @@ nav a { color: var(--color-bg); }
   scroll-snap-align: start;
   white-space: normal;
 }
-@media(min-width:1023px) { .project-detail { width: 70vw; } }
+@media(min-width:1023px) { .project-detail { flex: 0 0 70vw; } }
 @media(min-width:1023px) {
   .project-detail--sm { max-width: 60vw !important; }
   .project-detail--xs { max-width: 30vw; }
 }
+
 .layout-gallery, .layout-image { max-height: 70vh; width: 100%; overflow: hidden; }
 .layout-image { aspect-ratio: 1/1; }
 .layout-image img { width: 100%; height: auto; aspect-ratio: 1/1; object-fit: cover; }
@@ -587,12 +629,15 @@ nav a { color: var(--color-bg); }
 .layout-reel > div { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 .content-width { max-width: 720px; }
 .page-width { max-width: 968px; }
-.next-project-section {
-  width: 100vw;
-  padding: 0 100px;
-}
-@media(min-width:1023px) { .next-project-section { width: 100vw; padding: 0 500px; } }
 .project-end { line-height: 100%; }
+
+/* Project hero video (native <video> element) */
+.project-video-native {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 
 /* ─── Glitch Effect ──────────────────────────────────────────────────────── */
 .glitch {
