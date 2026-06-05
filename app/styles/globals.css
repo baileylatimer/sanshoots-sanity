@@ -62,7 +62,7 @@
 
 /* ─── Base ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+/* scroll-behavior: smooth removed — JS ScrollSmoother handles this */
 
 html, body {
   background: url('/bg-texture.jpg') repeat;
