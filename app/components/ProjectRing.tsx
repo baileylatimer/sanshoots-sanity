@@ -124,9 +124,14 @@ function onBeforeCompileRounded(
   );
 
   // ── Fragment: rounded-rect SDF alpha mask + distance-based blur ───────────
-  shader.uniforms.uBlur = { value: 0 };
+  // uCoverScale/uCoverOffset mirror texture.repeat/offset so the blur
+  // samples the same cropped region as the main render (object-fit: cover).
+  shader.uniforms.uBlur        = { value: 0 };
+  shader.uniforms.uCoverScale  = { value: new THREE.Vector2(1, 1) };
+  shader.uniforms.uCoverOffset = { value: new THREE.Vector2(0, 0) };
   shader.fragmentShader =
-    "uniform float uBlur;\nvarying vec2 vRoundUv;\n" + shader.fragmentShader;
+    "uniform float uBlur;\nuniform vec2 uCoverScale;\nuniform vec2 uCoverOffset;\nvarying vec2 vRoundUv;\n" +
+    shader.fragmentShader;
   shader.fragmentShader = shader.fragmentShader.replace(
     "#include <dithering_fragment>",
     `#include <dithering_fragment>
@@ -147,7 +152,8 @@ function onBeforeCompileRounded(
     vec3 blurSum = vec3(0.0);
     for (int bi = -1; bi <= 1; bi++) {
       for (int bj = -1; bj <= 1; bj++) {
-        vec2 bUv = clamp(vRoundUv + vec2(float(bi), float(bj)) * bOff, 0.0, 1.0);
+        vec2 cUv = vRoundUv * uCoverScale + uCoverOffset;
+        vec2 bUv = clamp(cUv + vec2(float(bi), float(bj)) * bOff, uCoverOffset, uCoverOffset + uCoverScale);
         vec3 s = texture2D(map, bUv).rgb;
         blurSum += pow(s, vec3(2.2));
       }
@@ -180,11 +186,13 @@ function CardMesh({
 }) {
   const meshRef   = useRef<THREE.Mesh>(null!);
   const frameRef  = useRef(0);
-  const shaderRef = useRef<{ uniforms: Record<string, { value: number }> } | null>(null);
+  // Typed as the onBeforeCompile param so uniform.value is `any` (supports both
+  // scalar and Vector2 uniforms without casts)
+  const shaderRef = useRef<Parameters<THREE.Material["onBeforeCompile"]>[0] | null>(null);
   // Stable per-card wrapper: calls shared injector then records shader for uniform updates
   const onBC = useRef((s: Parameters<THREE.Material["onBeforeCompile"]>[0]) => {
     onBeforeCompileRounded(s);
-    shaderRef.current = s as unknown as { uniforms: Record<string, { value: number }> };
+    shaderRef.current = s;
   }).current;
 
   useFrame(() => {
@@ -205,7 +213,14 @@ function CardMesh({
     if (map) {
       const mat = meshRef.current.material as THREE.MeshBasicMaterial;
       mat.color.setScalar(brightness);
-      if (shaderRef.current) shaderRef.current.uniforms.uBlur.value = dimT * MAX_BLUR;
+      if (shaderRef.current) {
+        shaderRef.current.uniforms.uBlur.value = dimT * MAX_BLUR;
+        // Mirror texture cover-crop into shader so blur samples the same region
+        if (mat.map) {
+          shaderRef.current.uniforms.uCoverScale.value.set(mat.map.repeat.x, mat.map.repeat.y);
+          shaderRef.current.uniforms.uCoverOffset.value.set(mat.map.offset.x, mat.map.offset.y);
+        }
+      }
       // ── Diagnostic: log once per ~60 frames to validate dim mechanism ──
       if (DEBUG_DIM && frameRef.current % 60 === 0) {
         console.log("[dim]",
@@ -244,6 +259,28 @@ function CardMesh({
   );
 }
 
+// ── Cover-fit helper ──────────────────────────────────────────────────────────
+// Sets texture.repeat + offset so the image fills the card plane without
+// distortion — equivalent to CSS object-fit: cover.
+const PLANE_ASPECT = CARD_W / CARD_H; // ≈ 0.5625 (portrait card)
+
+function applyCover(tex: THREE.Texture, imgW: number, imgH: number) {
+  if (!imgW || !imgH) return;
+  const imgAspect = imgW / imgH;
+  if (imgAspect > PLANE_ASPECT) {
+    // Image wider than card → crop left/right, fill height
+    const s = PLANE_ASPECT / imgAspect;
+    tex.repeat.set(s, 1);
+    tex.offset.set((1 - s) / 2, 0);
+  } else {
+    // Image taller than card → crop top/bottom, fill width
+    const s = imgAspect / PLANE_ASPECT;
+    tex.repeat.set(1, s);
+    tex.offset.set(0, (1 - s) / 2);
+  }
+  tex.needsUpdate = true;
+}
+
 // ── Loaded card (texture + optional video) ────────────────────────────────────
 function RingCardLoaded({
   project,
@@ -263,13 +300,28 @@ function RingCardLoaded({
   posterTex.colorSpace = THREE.SRGBColorSpace;
   posterTex.anisotropy = 8;
 
-  const videoRef    = useRef<HTMLVideoElement | null>(null);
-  const videoTexRef = useRef<THREE.VideoTexture | null>(null);
+  // Apply cover-fit to poster once loaded (useLoader is memoized by URL)
+  useEffect(() => {
+    const img = posterTex.image as HTMLImageElement | undefined;
+    if (img) {
+      applyCover(
+        posterTex,
+        img.naturalWidth  || (img as HTMLImageElement).width,
+        img.naturalHeight || (img as HTMLImageElement).height
+      );
+    }
+  }, [posterTex]);
+
+  const videoRef       = useRef<HTMLVideoElement | null>(null);
+  const videoTexRef    = useRef<THREE.VideoTexture | null>(null);
   const [videoReady, setVideoReady] = useState(false);
   const pointerDownPos = useRef<[number, number]>([0, 0]);
+  const wasFrontRef    = useRef(false); // mobile: tracks whether this card was the front card
 
+  // Create video element on both desktop (hover) and mobile (front-card autoplay).
+  // preload="none" keeps it lightweight until explicitly played.
   useEffect(() => {
-    if (isMobile || !project.mp4Src) return;
+    if (!project.mp4Src) return;
     const vid = document.createElement("video");
     vid.crossOrigin = "anonymous";
     vid.loop = true;
@@ -281,6 +333,12 @@ function RingCardLoaded({
     s.type = "video/mp4";
     vid.appendChild(s);
     vid.addEventListener("loadeddata", () => setVideoReady(true));
+    // Apply cover-fit once video dimensions are known
+    vid.addEventListener("loadedmetadata", () => {
+      if (videoTexRef.current && vid.videoWidth && vid.videoHeight) {
+        applyCover(videoTexRef.current, vid.videoWidth, vid.videoHeight);
+      }
+    });
     videoRef.current = vid;
     const tex = new THREE.VideoTexture(vid);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -293,16 +351,35 @@ function RingCardLoaded({
       videoTexRef.current = null;
       setVideoReady(false);
     };
-  }, [isMobile, project.mp4Src]);
+  }, [project.mp4Src]);
 
   useFrame(() => {
     if (videoTexRef.current && videoRef.current && !videoRef.current.paused) {
       videoTexRef.current.needsUpdate = true;
     }
+    // Mobile: autoplay the front-facing card; pause all others.
+    // frontness = cos(angle from center); threshold ~cos(11°) = 0.98 ensures
+    // only one of the 12 cards (spaced 30° apart) qualifies at a time.
+    if (isMobile && videoRef.current) {
+      const frontness = Math.cos(angle + groupRotY.current);
+      const isFront = frontness > 0.98;
+      if (isFront !== wasFrontRef.current) {
+        wasFrontRef.current = isFront;
+        if (isFront) {
+          videoRef.current.load();
+          videoRef.current.play().catch(() => {});
+        } else {
+          videoRef.current.pause();
+          videoRef.current.currentTime = 0;
+          setVideoReady(false);
+        }
+      }
+    }
   });
 
   const activeTex = videoReady && videoTexRef.current ? videoTexRef.current : posterTex;
 
+  // Desktop: hover to play / stop
   const handlePointerOver = useCallback(() => {
     if (isMobile || !videoRef.current) return;
     videoRef.current.load();
