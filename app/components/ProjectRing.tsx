@@ -25,10 +25,10 @@ export interface RingProject {
   linkTo: string;
 }
 
-const CARD_W      = 1.7;
-const CARD_H      = 3.0;
-const CARD_RADIUS = 0.18;  // rounded corner radius in world units
-const RING_RADIUS = 2.1;   // tighter ring (was 2.5; add projects in Sanity for fuller look)
+const CARD_W      = 1.8;   // sized so 12 cards (6 projects × 2) tile edge-to-edge at 30° each
+const CARD_H      = 3.2;
+const CARD_RADIUS = 0.20;
+const RING_RADIUS = 3.5;   // CARD_W ≈ RING_RADIUS × (2π/12) → cards just touch
 const CAMERA_Z    = 4.5;
 
 // ── Drag / inertia / snap tunables ────────────────────────────────────────────
@@ -39,9 +39,10 @@ const FRICTION         = 0.95;
 const SNAP_THRESHOLD   = 0.002;
 const SNAP_LERP        = 0.12;
 const ENABLE_SNAP      = false; // TODO: flip to true to re-enable snap-to-front
+const BEND_STRENGTH    = 1.0;   // 0 = flat, 1 = fully conformed to cylinder (wrapping look)
 
 // ── Scroll-driven tilt / spin tunables ────────────────────────────────────────
-const TILT_DEG           = 35;   // max X-axis tilt (ring tips up/down)
+const TILT_DEG           = 20;   // max X-axis tilt (ring tips up/down)
 const SCROLL_ROTATE_TURNS = 0.5; // carousel turns per full scroll-through (0→1)
 const SCROLL_SMOOTH      = 0.08; // lerp factor for tilt smoothing
 
@@ -88,16 +89,34 @@ function RedDot() {
 function onBeforeCompileRounded(
   shader: Parameters<THREE.Material["onBeforeCompile"]>[0]
 ) {
-  // ── Vertex: compute vRoundUv from local position ──────────────────────────
+  // ── Vertex: compute vRoundUv from local (flat) position ──────────────────
   shader.vertexShader =
     "varying vec2 vRoundUv;\n" + shader.vertexShader;
   shader.vertexShader = shader.vertexShader.replace(
     "void main() {",
     `void main() {
+  // Use flat position for rounded-corner mask (before bending)
   vRoundUv = vec2(
     position.x / ${CARD_W.toFixed(4)} + 0.5,
     position.y / ${CARD_H.toFixed(4)} + 0.5
   );`
+  );
+
+  // ── Vertex: cylindrical bend — wrap card around ring axis ─────────────────
+  // bendR = ring radius / strength; at strength=1 card conforms to cylinder.
+  // As strength→0, bendR→∞ and the card becomes flat.
+  const bendR = BEND_STRENGTH > 0
+    ? (RING_RADIUS / BEND_STRENGTH).toFixed(6)
+    : "999999.0";
+  shader.vertexShader = shader.vertexShader.replace(
+    "#include <begin_vertex>",
+    `#include <begin_vertex>
+  {
+    float bendR = ${bendR};
+    float a = position.x / bendR;
+    transformed.x = bendR * sin(a);
+    transformed.z += bendR * (cos(a) - 1.0);
+  }`
   );
 
   // ── Fragment: rounded-rect SDF alpha mask ─────────────────────────────────
@@ -160,7 +179,8 @@ function CardMesh({
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
     >
-      <planeGeometry args={[CARD_W, CARD_H]} />
+      {/* 40 width segments so the cylindrical bend is smooth */}
+      <planeGeometry args={[CARD_W, CARD_H, 40, 1]} />
       <meshBasicMaterial
         key={map?.uuid ?? "placeholder"}
         map={map}
@@ -169,7 +189,7 @@ function CardMesh({
         toneMapped={false}
         transparent
         onBeforeCompile={onBeforeCompileRounded}
-        customProgramCacheKey={() => "rounded-card"}
+        customProgramCacheKey={() => `rounded-card-${BEND_STRENGTH}-${RING_RADIUS}`}
       />
     </mesh>
   );
@@ -324,7 +344,9 @@ function RingGroup({
   onActiveIndexChange: (idx: number) => void;
   sectionRef: React.RefObject<HTMLElement>;
 }) {
-  const angleStep    = (Math.PI * 2) / projects.length;
+  // Duplicate projects so 12 cards fill the ring (30° each → edge-to-edge at RING_RADIUS 3.5)
+  const displayProjects = [...projects, ...projects];
+  const angleStep    = (Math.PI * 2) / displayProjects.length;
   const lastActiveRef = useRef(-1);
   const tiltGroupRef  = useRef<THREE.Group>(null!);
 
@@ -377,7 +399,8 @@ function RingGroup({
 
     // ── Active card detection ────────────────────────────────────────────────
     const raw = Math.round(-groupRotY.current / angleStep);
-    const idx = ((raw % projects.length) + projects.length) % projects.length;
+    const displayIdx = ((raw % displayProjects.length) + displayProjects.length) % displayProjects.length;
+    const idx = displayIdx % projects.length;
     if (idx !== lastActiveRef.current) {
       lastActiveRef.current = idx;
       onActiveIndexChange(idx);
@@ -386,9 +409,9 @@ function RingGroup({
 
   return (
     <group ref={tiltGroupRef}>
-      {projects.map((project, i) => (
+      {displayProjects.map((project, i) => (
         <RingCard
-          key={project._id}
+          key={`${project._id}-${i}`}
           project={project}
           angle={i * angleStep}
           groupRotY={groupRotY}
