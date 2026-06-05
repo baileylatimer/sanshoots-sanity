@@ -21,11 +21,15 @@ export default function Layout({ children, className }: LayoutProps) {
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (prefersReduced) return;
 
+    // ignoreMobileResize: stop ScrollTrigger recomputing pins on iOS toolbar show/hide
+    ScrollTrigger.config({ ignoreMobileResize: true });
+
     const smoother = ScrollSmoother.create({
       wrapper: "#smooth-wrapper",
       content: "#smooth-content",
       smooth: 1.2,      // tunable: higher = smoother/laggier
       effects: true,    // enables data-speed / data-lag parallax attributes
+      normalizeScroll: true, // fixes iOS address-bar resize jitter on pinned sections
       // smoothTouch intentionally omitted → native scroll on touch devices
     });
 
