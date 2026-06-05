@@ -24,12 +24,12 @@ export default function About() {
 
   return (
     <Layout>
-      <div className="page-header">
+      <div className="page-header text-center pt-24 lg:pt-24  px-d">
         <h1>About</h1>
       </div>
 
       {/* About video card */}
-      <div className="px-d mt-8">
+      <div className="px-d">
         <h5 className="mb-4">Watch the film</h5>
         {aboutVideoUrl && (
           <div className="about-card">
@@ -43,7 +43,7 @@ export default function About() {
         )}
 
         <h5 className="mt-12">{data?.subheadline || "About Sanshoots"}</h5>
-        <h3 className="text-justify mt-4" style={{ maxWidth: "900px" }}>
+        <h3 className="text-justify mt-4">
           {data?.headline || "One part left brain, one part right brain. One whole creative video agency."}
         </h3>
       </div>

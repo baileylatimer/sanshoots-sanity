@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "@remix-run/react";
+import ScrambleLink from "./ScrambleLink";
 
 function RedDot() {
   return (
@@ -47,9 +48,9 @@ export default function Header() {
       <div className={`${isExpanded ? "block" : "hidden"} w-full nav-open block lg:flex lg:items-center lg:w-auto mt-4 pt-4 lg:mt-0 lg:pt-0 relative`}>
         <div className="flex flex-col items-center h-full relative nav-menu-mobile">
           <div className="text-sm">
-            <Link to="/showreel" className="block mt-4 mr-4 lg:inline-block lg:mt-0 text-center">Showreel</Link>
-            <Link to="/shortfilms" className="block mt-4 mr-4 lg:inline-block lg:mt-0 text-center">Shortfilms</Link>
-            <Link to="/about" className="block mt-4 mr-4 lg:inline-block lg:mt-0 text-center">About</Link>
+            <ScrambleLink to="/showreel" className="block mt-4 mr-4 lg:inline-block lg:mt-0 text-center">Showreel</ScrambleLink>
+            <ScrambleLink to="/shortfilms" className="block mt-4 mr-4 lg:inline-block lg:mt-0 text-center">Shortfilms</ScrambleLink>
+            <ScrambleLink to="/about" className="block mt-4 mr-4 lg:inline-block lg:mt-0 text-center">About</ScrambleLink>
           </div>
         </div>
 

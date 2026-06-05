@@ -35,7 +35,7 @@ export default function Contact() {
 
   return (
     <Layout>
-      <div className="page-header">
+      <div className="page-header text-center pt-24 lg:pt-24 px-d">
         <h1>Contact</h1>
       </div>
       <div
