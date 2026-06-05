@@ -24,7 +24,7 @@ export default function About() {
 
   return (
     <Layout>
-      <div className="page-header text-center pt-24 lg:pt-24  px-d">
+      <div className="page-header text-center pt-24 lg:pt-32 px-d">
         <h1>About</h1>
       </div>
 
@@ -81,11 +81,7 @@ export default function About() {
         </div>
       )}
 
-      {/* Contact banner */}
-      <div className="contact-banner">
-        <h2 className="color-bg">{data?.contactBannerText || "Get in touch"}</h2>
-        <Link to="/contact" className="btn btn--ghost">Start a project</Link>
-      </div>
+
     </Layout>
   );
 }

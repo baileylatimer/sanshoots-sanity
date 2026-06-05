@@ -44,8 +44,26 @@ function VideoSlide({ slide, isVisible, isMobile }: VideoSlideProps) {
     }
   }, [isVisible, isMobile]);
 
+  const handleMouseEnter = () => {
+    if (!isMobile && videoRef.current) {
+      videoRef.current.play().catch(() => {});
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (!isMobile && videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+  };
+
   return (
-    <Link to={slide.linkTo} className="video-slide pl-4">
+    <Link
+      to={slide.linkTo}
+      className="video-slide pl-4"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <div className="video-container">
         {(isMobile || !isVisible || hasVideoError) ? (
           <img

@@ -717,6 +717,11 @@ h1 span, h2 span, h3 span { font-family: inherit !important; }
   animation: noise-anim-2 2s linear infinite alternate-reverse;
 }
 
+/* ─── Page header ────────────────────────────────────────────────────────── */
+@media(min-width:1024px) {
+  .page-header h1 { line-height: 90%; }
+}
+
 /* ─── Contact banner (CTA at the bottom of pages) ──────────────────────── */
 .contact-banner {
   display: flex;

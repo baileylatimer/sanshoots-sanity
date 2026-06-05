@@ -29,7 +29,7 @@ export default function ShowreelPage() {
 
   return (
     <Layout>
-      <div className="page-header">
+      <div className="page-header text-center pt-24 lg:pt-32 px-d">
         <h1>{data?.page?.pageTitle || "Showreel"}</h1>
       </div>
       <VideoSlider slides={slides} />
