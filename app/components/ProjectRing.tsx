@@ -40,6 +40,10 @@ const SNAP_THRESHOLD   = 0.002;
 const SNAP_LERP        = 0.12;
 const ENABLE_SNAP      = false; // TODO: flip to true to re-enable snap-to-front
 const BEND_STRENGTH    = 1.0;   // 0 = flat, 1 = fully conformed to cylinder (wrapping look)
+const MAX_DIM          = 0.7;   // max linear dim — bold to confirm rendering; dial back once visible
+const MAX_BLUR         = 0.5;   // max uBlur value sent to shader (0 = sharp, 1 = fully blurred)
+const FOCUS_ANGLE      = THREE.MathUtils.degToRad(50); // angular radius of "bright zone" around front
+const DEBUG_DIM        = false; // set true to re-enable dim diagnostic logs
 
 // ── Scroll-driven tilt / spin tunables ────────────────────────────────────────
 const TILT_DEG           = 20;   // max X-axis tilt (ring tips up/down)
@@ -119,9 +123,10 @@ function onBeforeCompileRounded(
   }`
   );
 
-  // ── Fragment: rounded-rect SDF alpha mask ─────────────────────────────────
+  // ── Fragment: rounded-rect SDF alpha mask + distance-based blur ───────────
+  shader.uniforms.uBlur = { value: 0 };
   shader.fragmentShader =
-    "varying vec2 vRoundUv;\n" + shader.fragmentShader;
+    "uniform float uBlur;\nvarying vec2 vRoundUv;\n" + shader.fragmentShader;
   shader.fragmentShader = shader.fragmentShader.replace(
     "#include <dithering_fragment>",
     `#include <dithering_fragment>
@@ -135,7 +140,23 @@ function onBeforeCompileRounded(
     float aa   = fwidth(d);
     float mask = 1.0 - smoothstep(-aa, aa, d);
     gl_FragColor.a *= mask;
-  }`
+  }
+  #ifdef USE_MAP
+  if (uBlur > 0.001) {
+    float bOff = uBlur * 0.005;
+    vec3 blurSum = vec3(0.0);
+    for (int bi = -1; bi <= 1; bi++) {
+      for (int bj = -1; bj <= 1; bj++) {
+        vec2 bUv = clamp(vRoundUv + vec2(float(bi), float(bj)) * bOff, 0.0, 1.0);
+        vec3 s = texture2D(map, bUv).rgb;
+        blurSum += pow(s, vec3(2.2));
+      }
+    }
+    blurSum /= 9.0;
+    blurSum *= diffuse;
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, blurSum, uBlur);
+  }
+  #endif`
   );
 }
 
@@ -157,9 +178,17 @@ function CardMesh({
   onPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
   onPointerUp?: (e: ThreeEvent<PointerEvent>) => void;
 }) {
-  const meshRef = useRef<THREE.Mesh>(null!);
+  const meshRef   = useRef<THREE.Mesh>(null!);
+  const frameRef  = useRef(0);
+  const shaderRef = useRef<{ uniforms: Record<string, { value: number }> } | null>(null);
+  // Stable per-card wrapper: calls shared injector then records shader for uniform updates
+  const onBC = useRef((s: Parameters<THREE.Material["onBeforeCompile"]>[0]) => {
+    onBeforeCompileRounded(s);
+    shaderRef.current = s as unknown as { uniforms: Record<string, { value: number }> };
+  }).current;
 
   useFrame(() => {
+    frameRef.current++;
     if (!meshRef.current) return;
     const totalAngle = angle + groupRotY.current;
     const x = Math.sin(totalAngle) * RING_RADIUS;
@@ -169,6 +198,26 @@ function CardMesh({
     const frontness = Math.cos(totalAngle);
     const scale = THREE.MathUtils.lerp(0.85, 1.0, (frontness + 1) / 2);
     meshRef.current.scale.setScalar(scale);
+    // Angular-distance dim + blur: front = full brightness/sharp, ≥FOCUS_ANGLE = dim + blurred
+    const ang = Math.acos(THREE.MathUtils.clamp(frontness, -1, 1));
+    const dimT = THREE.MathUtils.clamp(ang / FOCUS_ANGLE, 0, 1);
+    const brightness = 1 - MAX_DIM * dimT;
+    if (map) {
+      const mat = meshRef.current.material as THREE.MeshBasicMaterial;
+      mat.color.setScalar(brightness);
+      if (shaderRef.current) shaderRef.current.uniforms.uBlur.value = dimT * MAX_BLUR;
+      // ── Diagnostic: log once per ~60 frames to validate dim mechanism ──
+      if (DEBUG_DIM && frameRef.current % 60 === 0) {
+        console.log("[dim]",
+          "bright=", brightness.toFixed(3),
+          "| colorReadback=", mat.color.getHexString(),
+          "| isArray=", Array.isArray(meshRef.current.material),
+          "| mapMatches=", mat.map === map,
+          "| type=", mat.type,
+          "| uuid=", mat.uuid.slice(0, 6),
+        );
+      }
+    }
   });
 
   return (
@@ -188,7 +237,7 @@ function CardMesh({
         side={THREE.DoubleSide}
         toneMapped={false}
         transparent
-        onBeforeCompile={onBeforeCompileRounded}
+        onBeforeCompile={onBC}
         customProgramCacheKey={() => `rounded-card-${BEND_STRENGTH}-${RING_RADIUS}`}
       />
     </mesh>
@@ -486,7 +535,7 @@ export default function ProjectRing({
   const bind = useGesture({
     onDrag: ({ delta: [dx], last, velocity: [vx], direction: [dirx] }) => {
       isDragging.current = true;
-      groupRotY.current += dx * DRAG_SENSITIVITY * (isMobile ? 0.75 : 1);
+      groupRotY.current += dx * DRAG_SENSITIVITY * (isMobile ? 0.75 : 0.65);
       if (last) {
         isDragging.current = false;
         const fling = dirx * vx * FLING_SCALE;
